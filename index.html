@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>(It's a computer.)</title>
+	<style>
+		body {
+			background: black;
+			color: white;
+			font-size: 16px;
+			font-family: Courier, monospace;
+		}
+		input {
+			background: black;
+			border: none;
+			color: white;
+			font-size: 16px;
+			font-family: Courier, monospace;
+			padding: 0px;
+			min-width: 1px;
+			max-width: 100%;
+			width: 0px;
+			box-sizing: border-box;
+			caret-color: white;
+			outline: none;
+		}
+		#log {
+			white-space: pre-wrap;
+			color: white;
+			position: absolute;
+			bottom: 0px;
+			left: 0px;
+			right: 0px;
+			padding: 10px;
+		}
+		#label {
+			position: fixed;
+			top: 0px;
+			left: 0px;
+			width: 100%;
+			height: 100%;
+		}
+	</style>
+</head>
+<body>
+	<noscript>You need to enable javascript to play this game.</noscript>
+	<label id="label">
+		<div id="log"></div>
+	</label>
+	<script>
+		var log = document.getElementById("log");
+		var input = document.createElement("input");
+		input.id = "input";
+		var files = {};
+		var wd = [];
+		var commands = {};
+		var commandhelp = {};
+		// HELP COMMAND
+		commandhelp.help = "Shows help information\nUsage: help [cmdlet]";
+		commands.help = function (cmdlet) {
+			if (cmdlet) {
+				if (commandhelp[cmdlet]) {
+					println(commandhelp[cmdlet]);
+				} else {
+					println("No help available for '" + cmdlet + "'");
+				}
+			} else {
+				var commandlist = Object.keys(commands).sort();
+				println("Available commands: " + commandlist.join(", ") + "\nType 'help [cmdlet]' for more information");
+			}
+		};
+		// CLEAR COMMAND
+		commandhelp.clear = "Clears the screen";
+		commands.clear = function() {
+			while (log.children.length > 0) {
+				log.children[0].remove();
+			}
+		};
+		// event enter to submit command
+		document.onkeypress = function (e) {
+			if (e.which == 13) {
+				input.remove();
+				var inp = input.value.trimLeft().trimRight();
+				if (inp.length > 0) {
+					write(input.value + "\n");
+					processCommand(inp);
+					processEvents();
+				}
+			}
+		};
+		input.oninput = function (e) {
+			input.style.width = input.value.length + "ch";
+			input.scrollLeft = 0;
+		};
+		function write(text, color) {
+			var lines = text.split("\n");
+			for (var i = 0; i < lines.length; i++) {
+				if (lines[i].length > 0) {
+					var span = document.createElement("span");
+					span.style.color = color;
+					log.appendChild(span).appendChild(document.createTextNode(lines[i]));
+				}
+				if (i + 1 < lines.length) {
+					log.appendChild(document.createElement("br"));
+				}
+			}
+		}
+		function println(text, color) {
+			write(text + "\n", color);
+		}
+		// writes default text
+		println("Booting...............\nSDOS (c) 1988\n");
+		write(wd.join("/") + "> ");
+		// append input
+		log.appendChild(input);
+		input.focus();
+		// log errors if they occur
+		addEventListener("error", function (e) {
+			error(e.error.stack);
+		});
+		function error(text) {
+			write(text + "\n", "red");
+		}
+		// command processing
+		function processCommand(text) {
+			var args = text.split(" ");
+			var cmd = args.shift();
+			var i = 0;
+			while (i < args.length) {
+				var val = args[i];
+				if (val == "") {
+					args.splice(i, 1);
+				} else {
+					i = i + 1;
+				}
+			}
+			if (commands[cmd]) {
+				commands[cmd].apply(this, args);
+			} else {
+				println("Bad command. Try 'help'");
+			}
+		}
+		// event processing
+		function processEvents() {
+			log.appendChild(document.createElement("br"));
+			write(wd.join("/") + "> ");
+			log.appendChild(input);
+			input.focus();
+			input.value = "";
+			input.style.width = "0px";
+		}
+	</script>
+</body>
+</html>
