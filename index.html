@@ -65,6 +65,7 @@
 		var events = [];
 		var schedule = [];
 		var delay = 0;
+		var paused = false;
 		Function.prototype.schedule = function() {
 			schedule.push({
 				fun: this,
@@ -74,8 +75,22 @@
 		function wait(s) {
 			delay += s*1000;
 		}
+		function pause() {
+			paused = true;
+		}
+		function unpause() {
+			paused = false;
+		}
 		// file system
-		var root = {};
+		var root = {
+			type: "directory",
+			modified: 0,
+			created: 0,
+			hidden: false,
+			protected: false,
+			password: "",
+			content: {},
+		};
 		var wd = "/";
 		function getRawPathParts(path) {
 			var parts = path.trim().split("/");
@@ -103,13 +118,24 @@
 		function normalizePath(path) {
 			return "/"+getPathParts(path).join("/");
 		}
-		function getDirectory(path) {
+		function queryDirectory(path, create) {
 			var parts = getPathParts(path);
 			var dir = root;
-			for (var i = 0; i < parts.length; i++) {
-				dir = dir[parts[i]];
-				if (typeof dir != "object" || Array.isArray(dir)) {
+			var end = parts.length;
+			if (create) {
+				end = end - 1;
+			}
+			for (var i = 0; i < end; i++) {
+				dir = dir.content[parts[i]];
+				if (typeof dir != "object" || dir.type != "directory") {
 					return null;
+				}
+			}
+			if (create) {
+				if (dir.content[parts[end]]) {
+					return null;
+				} else {
+					return dir.content[parts[end]] = create;
 				}
 			}
 			return dir;
@@ -139,10 +165,58 @@
 			}
 		};
 		// CD COMMAND
-		commandhelp.cd = "Changes or displays the working directory\nUsage: cd [directory...]";
-		commands.cd = function(dir) {
+		commandhelp.cd = "Changes or displays the current directory\nUsage: cd [path...]";
+		commands.cd = function(a) {
+			if (a) {
+				var newPath = normalizePath(this.arg);
+				if (queryDirectory(newPath)) {
+					wd = newPath;
+				} else {
+					println("Invalid path.")
+				}
+			} else {
+				println(wd);
+			}
+		};
+		// MKDIR COMMAND
+		commandhelp.mkdir = "Creates a new directory\nUsage: mkdir <path...>";
+		commands.mkdir = function(a) {
+			if (a) {
+				var newPath = normalizePath(this.arg);
+				var dir = queryDirectory(newPath, {
+					type: "directory",
+					modified: Date.now(),
+					created: Date.now(),
+					hidden: false,
+					protected: false,
+					password: "",
+					content: {},
+				});
+				if (dir) {
+					println("Created directory "+newPath);
+				} else {
+					println("Invalid path.");
+				}
+			} else {
+				println("No path specified.");
+			}
+		};
+		// LS COMMAND
+		commandhelp.ls = "Lists all files in a given directory\nUsage: ls [path...]";
+		commands.ls = function(a) {
+			var path = normalizePath(this.arg);
+			var dir = queryDirectory(path);
 			if (dir) {
-				wd = normalizePath(this.arg);
+				println("Contents of "+path);
+				var keys = Object.keys(dir.content).sort();
+				for (var i = 0; i < keys.length; i++) {
+					println("  "+keys[i]+" ("+dir.content[keys[i]].type+")");
+				}
+				if (keys.length == 0) {
+					println("  (empty)");
+				}
+			} else {
+				println("Invalid path.");
 			}
 		};
 		// event enter to submit command
@@ -229,7 +303,9 @@
 			} else {
 				var event = events.shift();
 				event.fun.apply(null, event.args);
-				setTimeout(processEvents, delay);
+				if (!paused) {
+					setTimeout(processEvents, delay);
+				}
 				delay = 0;
 			}
 		}
