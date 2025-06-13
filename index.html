@@ -89,9 +89,16 @@
 			hidden: false,
 			protected: false,
 			password: "",
-			content: {},
+			content: {}
 		};
-		var wd = "/";
+		var wd/*gaster*/ = "/";
+		var errorCode = 0;
+		var ERR_FILE_INVALID = 1;
+		var ERR_FILE_PROTECTED = 2;
+		var ERR_FILE_DELETE = 3;
+		var ERR_FILE_TYPE = 4;
+		var ERR_FILE_ROOT = 5;
+		var ERR_FILE_EXISTS = 6;
 		function getRawPathParts(path) {
 			var parts = path.trim().split("/");
 			var i = 0;
@@ -118,27 +125,108 @@
 		function normalizePath(path) {
 			return "/"+getPathParts(path).join("/");
 		}
-		function queryDirectory(path, create) {
+		function queryItem(path, type, create, erase, password) {
+			errorCode = 0;
 			var parts = getPathParts(path);
-			var dir = root;
-			var end = parts.length;
-			if (create) {
-				end = end - 1;
-			}
+			var item = root;
+			var end = parts.length - 1;
 			for (var i = 0; i < end; i++) {
-				dir = dir.content[parts[i]];
-				if (typeof dir != "object" || dir.type != "directory") {
+				item = item.content[parts[i]];
+				if (typeof item != "object" || item.type != "directory") {
+					errorCode = ERR_FILE_INVALID;
 					return null;
 				}
+				if (item.protected) {
+					if (item.password != password) {
+						errorCode = ERR_FILE_PROTECTED;
+						return null;
+					}
+				}
 			}
-			if (create) {
-				if (dir.content[parts[end]]) {
-					return null;
+			if (parts.length > 0) {
+				if (create) {
+					if (item.content[parts[end]]) {
+						errorCode = ERR_FILE_EXISTS;
+						return null;
+					} else {
+						return item.content[parts[end]] = create;
+					}
+				} else if (erase) {
+					var toDelete = item.content[parts[end]];
+					if (!toDelete) {
+						errorCode = ERR_FILE_EXISTS;
+						return null;
+					}
+					if (toDelete.protected) {
+						if (toDelete.password != password) {
+							errorCode = ERR_FILE_PROTECTED;
+							return null;
+						}
+					}
+					if (toDelete.type == "directory" && erase != "force") {
+						if (Object.keys(toDelete.content).length > 0) {
+							errorCode = ERR_FILE_DELETE;
+							return null;
+						}
+					}
+					delete item.content[parts[end]];
+					return toDelete;
 				} else {
-					return dir.content[parts[end]] = create;
+					item = item.content[parts[end]];
 				}
 			}
-			return dir;
+			if (create || erase) {
+				errorCode = ERR_FILE_ROOT;
+				return null;
+			}
+			if (type) {
+				if (typeof item != "object") {
+					errorCode = ERR_FILE_INVALID;
+					return null;
+				}
+				if (item.type != type) {
+					errorCode = ERR_FILE_TYPE;
+					return null;
+				}
+			}
+			if (item.protected) {
+				if (item.password != password) {
+					errorCode = ERR_FILE_PROTECTED;
+					return null;
+				}
+			}
+			return item;
+		}
+		function getFile(path) {
+			return queryItem(path, "file");
+		}
+		function getDirectory(path) {
+			return queryItem(path, "directory");
+		}
+		function createFile(path) {
+			return queryItem(path, null, {
+				type: "file",
+				modified: Date.now(),
+				created: Date.now(),
+				hidden: false,
+				protected: false,
+				password: "",
+				content: "",
+			});
+		}
+		function createDirectory(path) {
+			return queryItem(path, null, {
+				type: "directory",
+				modified: Date.now(),
+				created: Date.now(),
+				hidden: false,
+				protected: false,
+				password: "",
+				content: {},
+			});
+		}
+		function eraseItem(path) {
+			return queryItem(path, null, null, true);
 		}
 		// commands
 		var commands = {};
@@ -169,7 +257,7 @@
 		commands.cd = function(a) {
 			if (a) {
 				var newPath = normalizePath(this.arg);
-				if (queryDirectory(newPath)) {
+				if (queryItem(newPath, "directory")) {
 					wd = newPath;
 				} else {
 					println("Invalid path.")
@@ -183,7 +271,7 @@
 		commands.mkdir = function(a) {
 			if (a) {
 				var newPath = normalizePath(this.arg);
-				var dir = queryDirectory(newPath, {
+				var dir = queryItem(newPath, null, {
 					type: "directory",
 					modified: Date.now(),
 					created: Date.now(),
@@ -195,7 +283,7 @@
 				if (dir) {
 					println("Created directory "+newPath);
 				} else {
-					println("Invalid path.");
+					println("Invalid directory path.");
 				}
 			} else {
 				println("No path specified.");
@@ -203,21 +291,42 @@
 		};
 		// LS COMMAND
 		commandhelp.ls = "Lists all files in a given directory\nUsage: ls [path...]";
-		commands.ls = function(a) {
+		commands.ls = function() {
 			var path = normalizePath(this.arg);
-			var dir = queryDirectory(path);
+			var dir = queryItem(path, "directory");
 			if (dir) {
 				println("Contents of "+path);
 				var keys = Object.keys(dir.content).sort();
 				for (var i = 0; i < keys.length; i++) {
-					println("  "+keys[i]+" ("+dir.content[keys[i]].type+")");
+					var entry = dir.content[keys[i]];
+					if (!entry.hidden) {
+						println("  "+keys[i]+" ("+entry.type+")");
+					}
 				}
 				if (keys.length == 0) {
 					println("  (empty)");
 				}
 			} else {
-				println("Invalid path.");
+				println("Invalid directory path.");
 			}
+		};
+		// CAT COMMAND
+		commandhelp.cat = "Prints the contents of a file\nUsage: cat [path...]";
+		commands.cat = function() {
+			var path = normalizePath(this.arg);
+			var file = queryItem(path, "file");
+			if (file) {
+				println(file.content);
+			} else {
+				println("Invalid file path.");
+			}
+		};
+		// EXIT COMMAND
+		commandhelp.exit = "Exits the currently running program\nUsage: exit [code]";
+		commands.exit = function() {
+			log.remove();
+			pause();
+			window.close();
 		};
 		// event enter to submit command
 		document.onkeypress = function (e) {
