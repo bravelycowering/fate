@@ -335,7 +335,7 @@
 			}
 		};
 		// CAT COMMAND
-		commandhelp.cat = "Prints the contents of a file\nUsage: cat [path...]";
+		commandhelp.cat = "Prints the contents of a file\nUsage: cat <path...>";
 		commands.cat = function() {
 			var path = normalizePath(this.arg);
 			var file = getFile(path);
@@ -346,7 +346,7 @@
 			}
 		};
 		// TOUCH COMMAND
-		commandhelp.touch = "Creates an empty file\nUsage: touch [path...]";
+		commandhelp.touch = "Creates an empty file\nUsage: touch <path...>";
 		commands.touch = function() {
 			var path = normalizePath(this.arg);
 			var file = createFile(path);
@@ -357,7 +357,7 @@
 			}
 		};
 		// ERASE COMMAND
-		commandhelp.erase = "Erases the provided file or directory\nUsage: erase [path...]";
+		commandhelp.erase = "Erases the provided file or directory\nUsage: erase <path...>";
 		commands.erase = function() {
 			var path = normalizePath(this.arg);
 			var item = eraseItem(path);
@@ -368,12 +368,13 @@
 			}
 		};
 		// RESET COMMAND
-		commandhelp.reset = "Resets your progress"
-		commands.reset = function() {
-			if (confirm("Are you sure??\n\nYou will not be able to undo this, and this will permanently erase all saved data!!!!!")) {
+		commandhelp.reset = "Resets your progress\nUsage: reset all my progress"
+		commands.reset = function(all, my, progress) {
+			if (all == "all" && my == "my" && progress == "progress" && confirm("Are you sure??\n\nYou will not be able to undo this, and this will permanently erase all saved data!!!!!")) {
 				localStorage.clear();
 				location.reload();
 			}
+			println("Bad syntax. Try 'help reset'");
 		}
 		// EXIT COMMAND
 		commandhelp.exit = "Exits the currently running program\nUsage: exit [code]";
@@ -474,7 +475,7 @@
 					arg: arg,
 				}, args);
 			} else {
-				println("Bad command or filename. Try 'help'");
+				println("Bad command. Try 'help'");
 			}
 		}
 		// event processing
