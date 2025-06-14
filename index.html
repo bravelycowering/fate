@@ -61,6 +61,10 @@
 		var input = document.createElement("input");
 		input.id = "input";
 		input.size = 1;
+		// input history
+		var inputHistory = [];
+		var inputHistoryIndex = 0;
+		var inputBackup = "";
 		// event system
 		var events = [];
 		var schedule = [];
@@ -89,8 +93,16 @@
 			hidden: false,
 			protected: false,
 			password: "",
-			content: {}
+			content: {},
 		};
+		if (localStorage.root) {
+			try {
+				root = JSON.parse(localStorage.root);
+			} catch(e) {
+				println("File system corrupted, restoring default", "red");
+				delete localStorage.root;
+			}
+		}
 		var wd/*gaster*/ = "/";
 		var errorCode = 0;
 		var ERR_FILE_INVALID = 1;
@@ -99,6 +111,7 @@
 		var ERR_FILE_TYPE = 4;
 		var ERR_FILE_ROOT = 5;
 		var ERR_FILE_EXISTS = 6;
+		var ERR_FILE_PATH = 7;
 		function getRawPathParts(path) {
 			var parts = path.trim().split("/");
 			var i = 0;
@@ -128,6 +141,10 @@
 		function queryItem(path, type, create, erase, password) {
 			errorCode = 0;
 			var parts = getPathParts(path);
+			if (parts == null) {
+				errorCode = ERR_FILE_PATH;
+				return null;
+			}
 			var item = root;
 			var end = parts.length - 1;
 			for (var i = 0; i < end; i++) {
@@ -149,7 +166,9 @@
 						errorCode = ERR_FILE_EXISTS;
 						return null;
 					} else {
-						return item.content[parts[end]] = create;
+						item.content[parts[end]] = create;
+						localStorage.root = JSON.stringify(root);
+						return create;
 					}
 				} else if (erase) {
 					var toDelete = item.content[parts[end]];
@@ -170,6 +189,7 @@
 						}
 					}
 					delete item.content[parts[end]];
+					localStorage.root = JSON.stringify(root);
 					return toDelete;
 				} else {
 					item = item.content[parts[end]];
@@ -242,7 +262,15 @@
 				}
 			} else {
 				var commandlist = Object.keys(commands).sort();
-				println("Available commands: " + commandlist.join(", ") + "\nType 'help [command]' for more information");
+				println("Available commands:");
+				for (var i = 0; i < commandlist.length; i++) {
+					if ((i + 1)%4 == 0 || i + 1 == commandlist.length) {
+						println("\t"+commandlist[i]);
+					} else {
+						write("\t"+commandlist[i]);
+					}
+				}
+				println("Type 'help [command]' for more info")
 			}
 		};
 		// CLEAR COMMAND
@@ -256,9 +284,9 @@
 		commandhelp.cd = "Changes or displays the current directory\nUsage: cd [path...]";
 		commands.cd = function(a) {
 			if (a) {
-				var newPath = normalizePath(this.arg);
-				if (queryItem(newPath, "directory")) {
-					wd = newPath;
+				var path = normalizePath(this.arg);
+				if (getDirectory(path)) {
+					wd = path;
 				} else {
 					println("Invalid path.")
 				}
@@ -270,18 +298,10 @@
 		commandhelp.mkdir = "Creates a new directory\nUsage: mkdir <path...>";
 		commands.mkdir = function(a) {
 			if (a) {
-				var newPath = normalizePath(this.arg);
-				var dir = queryItem(newPath, null, {
-					type: "directory",
-					modified: Date.now(),
-					created: Date.now(),
-					hidden: false,
-					protected: false,
-					password: "",
-					content: {},
-				});
+				var path = normalizePath(this.arg);
+				var dir = createDirectory(path);
 				if (dir) {
-					println("Created directory "+newPath);
+					println("Created directory "+path);
 				} else {
 					println("Invalid directory path.");
 				}
@@ -293,7 +313,7 @@
 		commandhelp.ls = "Lists all files in a given directory\nUsage: ls [path...]";
 		commands.ls = function() {
 			var path = normalizePath(this.arg);
-			var dir = queryItem(path, "directory");
+			var dir = getDirectory(path);
 			if (dir) {
 				println("Contents of "+path);
 				var keys = Object.keys(dir.content).sort();
@@ -314,13 +334,43 @@
 		commandhelp.cat = "Prints the contents of a file\nUsage: cat [path...]";
 		commands.cat = function() {
 			var path = normalizePath(this.arg);
-			var file = queryItem(path, "file");
+			var file = getFile(path);
 			if (file) {
 				println(file.content);
 			} else {
 				println("Invalid file path.");
 			}
 		};
+		// TOUCH COMMAND
+		commandhelp.touch = "Creates an empty file\nUsage: touch [path...]";
+		commands.touch = function() {
+			var path = normalizePath(this.arg);
+			var file = createFile(path);
+			if (file) {
+				println("Created file "+path);
+			} else {
+				println("Invalid file path.");
+			}
+		};
+		// ERASE COMMAND
+		commandhelp.erase = "Erases the provided file or directory\nUsage: erase [path...]";
+		commands.erase = function() {
+			var path = normalizePath(this.arg);
+			var item = eraseItem(path);
+			if (item) {
+				println("Erased "+item.type+" "+path);
+			} else {
+				println("Could not erase "+path);
+			}
+		};
+		// RESET COMMAND
+		commandhelp.reset = "Resets your progress"
+		commands.reset = function() {
+			if (confirm("Are you sure??\n\nYou will not be able to undo this, and this will permanently erase all saved data!!!!!")) {
+				localStorage.clear();
+				location.reload();
+			}
+		}
 		// EXIT COMMAND
 		commandhelp.exit = "Exits the currently running program\nUsage: exit [code]";
 		commands.exit = function() {
@@ -329,15 +379,38 @@
 			window.close();
 		};
 		// event enter to submit command
-		document.onkeypress = function (e) {
-			if (e.which == 13) {
-				var inp = input.value.trim();
-				if (inp.length > 0) {
-					input.remove();
-					write(input.value + "\n");
-					processCommand(inp);
-					processEvents();
+		document.onkeydown = function (e) {
+			if (e.which == 38 && inputHistory.length > 0) {
+				if (inputHistoryIndex == inputHistory.length) {
+					inputBackup = input.value;
 				}
+				inputHistoryIndex = Math.max(inputHistoryIndex - 1, 0);
+				input.value = inputHistory[inputHistoryIndex];
+				input.size = input.value.length + 1;
+			} else if (e.which == 40 && inputHistory.length > 0) {
+				if (inputHistoryIndex != inputHistory.length) {
+					inputHistoryIndex = Math.min(inputHistoryIndex + 1, inputHistory.length);
+					if (inputHistoryIndex == inputHistory.length) {
+						input.value = inputBackup;
+					} else {
+						input.value = inputHistory[inputHistoryIndex];
+					}
+				}
+				input.size = input.value.length + 1;
+			}
+			if (e.which == 13) {
+				var text = input.value;
+				input.remove();
+				write(text + "\n");
+				var last = inputHistory[inputHistory.length-1];
+				if (text != last && text.trim().length > 0) {
+					inputHistory.push(text);
+					if (inputHistory.length > 100) {
+						inputHistory.shift();
+					}
+				}
+				inputHistoryIndex = inputHistory.length;
+				processInput(text);
 			}
 		};
 		input.oninput = function (e) {
@@ -370,9 +443,16 @@
 		function error(text) {
 			write(text + "\n", "red");
 		}
+		// input processing
+		function processInput(text) {
+			if (input.value.trim().length > 0) {
+				processCommand(text);
+			}
+			processEvents();
+		}
 		// command processing
 		function processCommand(text) {
-			var args = text.split(" ");
+			var args = text.trim().split(" ");
 			var cmd = args.shift();
 			var arg = args.join(" ");
 			var i = 0;
