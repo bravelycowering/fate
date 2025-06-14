@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>(It's a computer.)</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<style>
+		body {
+			background: black;
+			color: white;
+			font-size: 16px;
+			font-family: Courier, monospace;
+			margin: 10px;
+			text-align: center;
+		}
+		canvas {
+			outline: 5px solid gray;
+			margin-top: 10px;
+			background-color: black;
+			width: 512px;
+			max-width: 100%;
+		}
+		a {
+			color: #0ff;
+			padding: 15px;
+		}
+		a:visited {
+			color: #f0f;
+		}
+		a:active {
+			color: #777;
+		}
+		a.block {
+			display: block;
+		}
+	</style>
+</head>
+<body>
+	<noscript>You need to enable javascript to play this game.</noscript>
+	<a href="/" class="block">&lt; back to terminal</a>
+	<span><canvas width="128" height="128" id="canvas"></canvas></span>
+	<script>
+		var src = "/pages/p-"+location.search.replace("?", "")+".js";
+		var script = document.createElement("script");
+		script.src = src;
+		script.onerror = function() {
+			alert("error: page not found");
+		};
+		document.body.appendChild(script);
+	</script>
+</body>
+</html>

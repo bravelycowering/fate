@@ -77,9 +77,9 @@
 		Function.prototype.schedule = function() {
 			schedule.push({
 				fun: this,
-				args: arguments,
+				args: arguments
 			});
-		}
+		};
 		function wait(s) {
 			delay += s*1000;
 		}
@@ -97,7 +97,7 @@
 			hidden: false,
 			protected: false,
 			password: "",
-			content: {},
+			content: {}
 		};
 		if (localStorage.root) {
 			try {
@@ -235,7 +235,7 @@
 				hidden: false,
 				protected: false,
 				password: "",
-				content: "",
+				content: ""
 			});
 		}
 		function createDirectory(path) {
@@ -246,7 +246,7 @@
 				hidden: false,
 				protected: false,
 				password: "",
-				content: {},
+				content: {}
 			});
 		}
 		function eraseItem(path) {
@@ -292,7 +292,7 @@
 				if (getDirectory(path)) {
 					wd = path;
 				} else {
-					println("Invalid path.")
+					println("Invalid path.");
 				}
 			} else {
 				println(wd);
@@ -472,7 +472,7 @@
 			if (commands[cmd.toLowerCase()]) {
 				commands[cmd.toLowerCase()].apply({
 					args: args,
-					arg: arg,
+					arg: arg
 				}, args);
 			} else {
 				println("Bad command. Try 'help'");
