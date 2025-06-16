@@ -39,8 +39,11 @@
 			position: fixed;
 			top: 0px;
 			left: 0px;
-			width: 100%;
-			height: 100%;
+			bottom: 0px;
+			right: 0px;
+		}
+		#label.hascanvas {
+			top: 512px;
 		}
 	</style>
 </head>
@@ -374,7 +377,7 @@
 				localStorage.clear();
 				location.reload();
 			}
-			println("Bad syntax. Try 'help reset'");
+			println("Please type 'reset all my progress' to confirm");
 		}
 		// EXIT COMMAND
 		commandhelp.exit = "Exits the currently running program\nUsage: exit [code]";

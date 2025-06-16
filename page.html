@@ -12,12 +12,17 @@
 			margin: 10px;
 			text-align: center;
 		}
+		img {
+			display: none;
+		}
 		canvas {
-			outline: 5px solid gray;
+			outline: 1px solid gray;
 			margin-top: 10px;
 			background-color: black;
-			width: 512px;
 			max-width: 100%;
+  			image-rendering: crisp-edges;
+  			image-rendering: pixelated;
+			-ms-interpolation-mode: nearest-neighbor;
 		}
 		a {
 			color: #0ff;
@@ -37,7 +42,8 @@
 <body>
 	<noscript>You need to enable javascript to play this game.</noscript>
 	<a href="/" class="block">&lt; back to terminal</a>
-	<span><canvas width="128" height="128" id="canvas"></canvas></span>
+	<img id="atlas" src="/atlas.png">
+	<span><canvas width="512" height="512" id="canvas"></canvas></span>
 	<script>
 		var src = "/pages/p-"+location.search.replace("?", "")+".js";
 		var script = document.createElement("script");
@@ -45,7 +51,58 @@
 		script.onerror = function() {
 			alert("error: page not found");
 		};
-		document.body.appendChild(script);
+		var atlas = document.getElementById("atlas");
+		var canvas = document.getElementById("canvas");
+		var ctx = canvas.getContext("2d");
+		var xscroll = 0;
+		var yscroll = 0;
+		ctx.scale(4, 4);
+		ctx.msImageSmoothingEnabled = false;
+		ctx.mozImageSmoothingEnabled = false;
+		ctx.webkitImageSmoothingEnabled = false;
+		ctx.imageSmoothingEnabled = false;
+		function drawTile(id, pos) {
+			if (Math.random() <= 0.9999) {
+				id = id - 1;
+			}
+			var tx = (id % 256) % 16;
+			var ty = Math.floor((id % 256) / 16);
+			var x = (pos % 256) % 16 + xscroll;
+			var y = Math.floor(((pos) % 256) / 16) + yscroll;
+			ctx.drawImage(atlas, tx * 8, ty * 8, 8, 8, x*8, y*8, 8, 8);
+		}
+		function setTilemap(tiles) {
+			tilemap = tiles;
+		}
+		function drawTilemap() {
+			for (var i = 0; i < tilemap.length; i++) {
+				drawTile(tilemap[i], i);
+			}
+		}
+		function mainloop() {
+			if (xscroll > 0) {
+				xscroll = xscroll - 1;
+				ctx.drawImage(canvas, -8, 0, 128, 128);
+			} else if (xscroll < 0) {
+				xscroll = xscroll + 1;
+				ctx.drawImage(canvas, 8, 0, 128, 128);
+			} else if (yscroll > 0) {
+				yscroll = yscroll - 1;
+				ctx.drawImage(canvas, 0, -8, 128, 128);
+			} else if (xscroll < 0) {
+				yscroll = yscroll + 1;
+				ctx.drawImage(canvas, 0, 8, 128, 128);
+			}
+			drawTilemap();
+		}
+		function setTileScroll(x, y) {
+			xscroll = x;
+			yscroll = y;
+		}
+		setInterval(mainloop, 50);
+		atlas.onload = function() {
+			document.body.appendChild(script);
+		};
 	</script>
 </body>
 </html>
